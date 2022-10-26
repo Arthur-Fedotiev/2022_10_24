@@ -1,0 +1,43 @@
+<div class="form-group">
+  <label for="filterSelect">Previous Filters:</label>
+  <select [formControl]="selectedFilter" class="form-control" id="filterSelect">
+    <option *ngFor="let filter of selectFilters$ | async" [ngValue]="filter">
+      {{ filter?.from }} - {{ filter?.to }}
+    </option>
+  </select>
+</div>
+
+<form [formGroup]="filterForm">
+  <div class="form-group">
+    <label for="from">From:</label>
+    <input
+      type="text"
+      class="form-control"
+      id="from"
+      placeholder="From"
+      formControlName="from"
+    />
+  </div>
+  <div class="form-group">
+    <label for="to">To:</label>
+    <input
+      type="text"
+      class="form-control"
+      id="to"
+      placeholder="To"
+      formControlName="to"
+    />
+  </div>
+  <div class="form-group">
+    <label for="date">Urgent</label>
+    <input
+      type="checkbox"
+      class="form-control"
+      id="urgent"
+      formControlName="urgent"
+    />
+  </div>
+  <button type="submit" class="btn btn-primary" (click)="search()">
+    Search
+  </button>
+</form>

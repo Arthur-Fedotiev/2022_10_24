@@ -2,19 +2,20 @@ import { CommonModule } from "@angular/common";
 import { Component, inject, Inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { Store } from "@ngrx/store";
-import { BookingSlice, delayFlight, loadFlights, selectFlights } from "@nx-example/booking/domain";
+import { BookingSlice, delayFlight, FlightFilter, loadFlights, selectFlights } from "@nx-example/booking/domain";
 import { take } from "rxjs";
 
-import { FlightCardComponent } from '@nx-example/booking/ui-common';
+import { FlightCardComponent, FlightFilterComponent } from '@nx-example/booking/ui-common';
 import { CityValidator } from '@nx-example/shared/util-common';
 
 @Component({
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
+    CommonModule,
+    FormsModule,
     FlightCardComponent,
     CityValidator,
+    FlightFilterComponent
   ],
   providers: [
   ],
@@ -23,9 +24,11 @@ import { CityValidator } from '@nx-example/shared/util-common';
 })
 export class FlightSearchComponent {
 
-  from = 'Berlin'; 
-  to = 'London'; 
-  urgent = false;
+  public filter: FlightFilter = {
+    from: 'Berlin',
+    to: 'London',
+    urgent: false
+};
 
   store = inject(Store<BookingSlice>);
   flights$ = this.store.select(selectFlights);
@@ -35,12 +38,14 @@ export class FlightSearchComponent {
     5: true
   };
 
-  search(): void {
-    if (!this.from || !this.to) return;
+  search(filter: FlightFilter): void {
+    this.filter = filter;
+
+    if (!this.filter.from || !this.filter.to) return;
 
     this.store.dispatch(loadFlights({
-      from: this.from, 
-      to: this.to 
+        from: this.filter.from,
+        to: this.filter.to
     }));
   }
 

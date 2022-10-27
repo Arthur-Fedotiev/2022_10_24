@@ -58,14 +58,12 @@ export class FlightFilterComponent implements OnInit, OnDestroy {
   >();
 
   private readonly filtersState$: Observable<LocalState> =
-    this.filtersStateActionsSubj$.asObservable().pipe(
-      scan(
-        (state: LocalState, action: Action<FlightFilter>) =>
-          this.filterStateReducer(state, action),
-        new LocalState()
-      ),
-      takeUntil(this.destroy$)
-    );
+    this.filtersStateActionsSubj$
+      .asObservable()
+      .pipe(
+        scan(this.filterStateReducer, new LocalState()),
+        takeUntil(this.destroy$)
+      );
 
   // allows to skip pushing the Search button triggering flight search on filter change automatically
   private readonly filterSelectedEffect$ =

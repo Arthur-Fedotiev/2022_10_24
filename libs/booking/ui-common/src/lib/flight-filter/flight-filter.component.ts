@@ -7,8 +7,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  FormBuilder,
   FormControl,
+  NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
@@ -17,6 +17,7 @@ import { filter, map, Observable, scan, Subject, takeUntil, tap } from 'rxjs';
 
 enum SearchFlightActions {
   FlightSearched = 'FlightSearched',
+  FilterSelected = 'FilterSelected',
 }
 
 class LocalState {
@@ -26,9 +27,9 @@ class LocalState {
   ) {}
 }
 
-interface Action {
+interface Action<T = any> {
   type: SearchFlightActions;
-  payload?: any;
+  payload: T;
 }
 
 @Component({
@@ -43,55 +44,70 @@ export class FlightFilterComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
 
-  readonly filterForm = this.fb.nonNullable.group({
+  readonly filterForm = this.fb.group({
     from: ['', Validators.required],
     to: ['', Validators.required],
     urgent: [false],
   });
 
-  readonly selectedFilter: FormControl<FlightFilter | null> = new FormControl(
-    null
-  );
+  readonly selectedFilter: FormControl<FlightFilter | null> =
+    this.fb.control(null);
 
-  private readonly filtersStateActionsSubj$ = new Subject<Action>();
+  private readonly filtersStateActionsSubj$ = new Subject<
+    Action<FlightFilter>
+  >();
 
   private readonly filtersState$: Observable<LocalState> =
     this.filtersStateActionsSubj$.asObservable().pipe(
       scan(
-        (state: LocalState, action: Action) =>
+        (state: LocalState, action: Action<FlightFilter>) =>
           this.filterStateReducer(state, action),
         new LocalState()
       ),
       takeUntil(this.destroy$)
     );
 
-  private readonly updateFilterForm$ = this.selectedFilter.valueChanges.pipe(
-    filter(Boolean),
-    tap((filter: FlightFilter) => {
-      this.filterForm.patchValue(filter);
-    }),
-    takeUntil(this.destroy$)
-  );
+  // allows to skip pushing the Search button triggering flight search on filter change automatically
+  private readonly filterSelectedEffect$ =
+    this.selectedFilter.valueChanges.pipe(
+      filter(Boolean),
+      tap((filter: FlightFilter) => {
+        this.filtersStateActionsSubj$.next({
+          type: SearchFlightActions.FilterSelected,
+          payload: filter,
+        });
+      }),
+      takeUntil(this.destroy$)
+    );
 
   public readonly selectFilters$ = this.filtersState$.pipe(
     map((state) => state.filters)
   );
 
-  private readonly updateSelectedFilter$ = this.selectFilters$.pipe(
+  private readonly selectSelectedFilter$ = this.filtersState$.pipe(
+    map((state) => state.selectedFilter)
+  );
+
+  // bonus task #1
+  private readonly updateFilterForm$ = this.selectSelectedFilter$.pipe(
     filter(Boolean),
-    tap((filters: FlightFilter[]) => {
-      this.selectedFilter.patchValue(filters[filters.length - 1], {
-        emitEvent: false,
-      });
-    }),
+    tap((filter: FlightFilter) => this.filterForm.patchValue(filter)),
     takeUntil(this.destroy$)
   );
 
-  // @Input() set filter(filter: FlightFilter) {
-  //   this.filterForm.patchValue(filter);
-  // }
+  // bonus task #2
+  private readonly updateSelectedFilter$ = this.selectSelectedFilter$.pipe(
+    filter(Boolean),
+    tap((filter: FlightFilter) => {
+      this.selectedFilter.patchValue(filter, {
+        emitEvent: false,
+      });
+    }),
+    tap((flight) => this.searchTrigger.emit(flight)),
+    takeUntil(this.destroy$)
+  );
 
-  constructor(private readonly fb: FormBuilder) {}
+  constructor(private readonly fb: NonNullableFormBuilder) {}
 
   ngOnDestroy(): void {
     this.releaseResources();
@@ -105,15 +121,18 @@ export class FlightFilterComponent implements OnInit, OnDestroy {
       type: SearchFlightActions.FlightSearched,
       payload: this.filterForm.getRawValue(),
     });
-
-    this.searchTrigger.emit(this.filterForm.getRawValue());
   }
 
-  private filterStateReducer(state: LocalState, action: Action): LocalState {
+  private filterStateReducer(
+    state: LocalState,
+    action: Action<FlightFilter>
+  ): LocalState {
     switch (action.type) {
       case SearchFlightActions.FlightSearched:
         return {
           ...state,
+          selectedFilter: action.payload,
+          // unoptimal, but for demo purposes... (bonus task #3)
           filters: state.filters.some(
             (filter) =>
               filter.from === action.payload.from &&
@@ -122,16 +141,20 @@ export class FlightFilterComponent implements OnInit, OnDestroy {
             ? state.filters
             : [...state.filters, action.payload],
         };
-
+      case SearchFlightActions.FilterSelected:
+        return {
+          ...state,
+          selectedFilter: action.payload,
+        };
       default:
         return state;
     }
   }
 
   private initListeners(): void {
-    this.filtersState$.subscribe();
     this.updateFilterForm$.subscribe();
     this.updateSelectedFilter$.subscribe();
+    this.filterSelectedEffect$.subscribe();
   }
 
   private releaseResources(): void {
